@@ -11,14 +11,14 @@
 
 <section>
 	<h1>
-		<span class="welcome">
+		<span class="chupalo entonce">
 			<picture>
 				<source srcset={welcome} type="image/webp" />
-				<img src={welcomeFallback} alt="Welcome" />
+				<img src={welcomeFallback} alt="Pico pal que lee" />
 			</picture>
 		</span>
 
-		to your new<br />SvelteKit app
+		<br />SvelteKit app
 	</h1>
 
 	<h2>
