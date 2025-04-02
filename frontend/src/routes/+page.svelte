@@ -1,59 +1,27 @@
-<script lang="ts">
-	import Counter from './Counter.svelte';
-	import welcome from '$lib/images/svelte-welcome.webp';
-	import welcomeFallback from '$lib/images/svelte-welcome.png';
+
+<script>
+	let open = false;
 </script>
 
-<svelte:head>
-	<title>Home</title>
-	<meta name="description" content="Svelte demo app" />
-</svelte:head>
+<header class="bg-blue-600 text-white p-4">
+	<div class="container mx-auto flex justify-center items-center relative">
+		<h1 class="text-xl font-bold">Repetitive Archetypes Patterns Detector</h1>
+		<!-- Menú desplegable -->
+		<div class="absolute right-0">
+			<button
+				class="bg-white text-blue-600 px-4 py-2 rounded"
+				on:click={() => (open = !open)}
+			>
+				Menú
+			</button>
 
-<section>
-	<h1>
-		<span class="welcome">
-			<picture>
-				<source srcset={welcome} type="image/webp" />
-				<img src={welcomeFallback} alt="Welcome" />
-			</picture>
-		</span>
-
-		to your new<br />SvelteKit app
-	</h1>
-
-	<h2>
-		try editing <strong>src/routes/+page.svelte</strong>
-	</h2>
-
-	<Counter />
-</section>
-
-<style>
-	section {
-		display: flex;
-		flex-direction: column;
-		justify-content: center;
-		align-items: center;
-		flex: 0.6;
-	}
-
-	h1 {
-		width: 100%;
-	}
-
-	.welcome {
-		display: block;
-		position: relative;
-		width: 100%;
-		height: 0;
-		padding: 0 0 calc(100% * 495 / 2048) 0;
-	}
-
-	.welcome img {
-		position: absolute;
-		width: 100%;
-		height: 100%;
-		top: 0;
-		display: block;
-	}
-</style>
+			{#if open}
+				<div class="absolute right-0 mt-2 w-48 bg-white text-black rounded shadow-lg z-10">
+					<a href="/opcion1" class="block px-4 py-2 hover:bg-gray-100">Opción 1</a>
+					<a href="/opcion2" class="block px-4 py-2 hover:bg-gray-100">Opción 2</a>
+					<a href="/opcion3" class="block px-4 py-2 hover:bg-gray-100">Opción 3</a>
+				</div>
+			{/if}
+		</div>
+	</div>
+</header>
