@@ -7,7 +7,7 @@
 	}
 
 	onMount(async () => {
-		const response = await fetch('../../backend/src/routes/icons');
+		const response = await fetch('api/icons');
 		const icons = await response.json();
 	});
 </script>
