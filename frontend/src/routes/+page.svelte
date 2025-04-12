@@ -1,30 +1,23 @@
-<script>
+<script lang="ts">
 	import { onMount } from 'svelte';
-	//hola como estas
+
 	let open = false;
+	let icons: string[] = [];
+
 	function handleClick() {
 		alert('Imaged Scanned!');
 	}
 
 	onMount(async () => {
-		const response = await fetch('api/icons');
-		const icons = await response.json();
+		try {
+			const response = await fetch('api/icons');
+			icons = await response.json();
+		} catch (error) {
+			console.error('Error fetching icons:', error);
+		}
 	});
 </script>
 
-<header
-	class="bg-amber-600 p-4 text-white"
-	style="background-image: url('/background.png'); background-size: cover; background-position: center;"
->
-	<style>
-		body {
-			background-image: url('/background.png');
-			background-size: cover;
-			background-position: center;
-			background-repeat: no-repeat;
-		}
-	</style>
-</header>
 <header class="bg-amber-600 p-4 text-white">
 	<div class="relative container mx-auto flex items-center justify-center">
 		<h1 class="text-xl font-bold">Repetitive Archetypes Patterns Detector</h1>
@@ -34,6 +27,7 @@
 				Menú
 			</button>
 			{#if open}
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<div
 					class="absolute right-0 z-10 mt-2 w-48 rounded bg-white text-black shadow-lg"
 					on:click={(event) => {
@@ -49,7 +43,7 @@
 	</div>
 </header>
 
-<div class="flex min-h-screen flex-col items-center justify-center">
+<main class="flex min-h-screen flex-col items-center justify-center">
 	<img src="/image.png" alt="Reference" class="mb-4 h-auto w-300" />
 	<button
 		on:click={handleClick}
@@ -57,11 +51,20 @@
 	>
 		Scan Image
 	</button>
-</div>
-<header>
-	<select>
+
+	<!-- Desplegable de íconos cargados -->
+	<select class="mt-4">
 		{#each icons as icon}
 			<option value={icon}>{icon}</option>
 		{/each}
 	</select>
-</header>
+</main>
+
+<style>
+	body {
+		background-image: url('/background.png');
+		background-size: cover;
+		background-position: center;
+		background-repeat: no-repeat;
+	}
+</style>
