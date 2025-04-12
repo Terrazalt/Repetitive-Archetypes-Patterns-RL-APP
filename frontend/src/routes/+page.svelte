@@ -1,6 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
-
+	//hola como estas
 	let open = false;
 	function handleClick() {
 		alert('Imaged Scanned!');
