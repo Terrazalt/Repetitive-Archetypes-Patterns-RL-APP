@@ -5,11 +5,12 @@
 	let openCNN: boolean = false;
 	let icons: string[] = [];
 	let selectedImage: string | null = null;
-
+	let scan: boolean = false;
 	// Función que maneja la selección de imagen
 	function handleClick(): void {
 		if (selectedImage) {
 			alert(`Selected image: ${selectedImage}`);
+			scan = true;
 		} else {
 			alert('No image selected');
 		}
@@ -61,7 +62,7 @@
 				<button class="py2 block px-4 hover:bg-amber-400" on:click={() => alert('CNN Model')}
 					>Yolo Model</button
 				>
-				<button class="py2 block px-4 hover:bg-gray-100" on:click={() => (openCNN = false)}>
+				<button class="py2 block px-4 hover:bg-amber-400" on:click={() => (openCNN = false)}>
 					Close
 				</button>
 			</div>
@@ -86,36 +87,43 @@
 	/>
 
 	<!-- Botón de acción -->
-	<button
-		on:click={handleClick}
-		class="mb-6 rounded bg-blue-500 px-4 py-2 font-bold text-white hover:bg-blue-600"
-	>
-		Scan Image
-	</button>
-	<!-- Boton de seleccion de patron-->
 
-	<div class="relative flex justify-end">
-		<button class="rounded bg-white px-4 py-2 text-black" on:click={() => (open = !open)}>
-			Seleccionar Imagen
+	<!-- Contenedor centrado con botones en línea -->
+	<div class="relative mt-8 flex items-center justify-center space-x-4">
+		<!-- Botón principal -->
+		<button
+			on:click={handleClick}
+			class="rounded bg-blue-500 px-4 py-2 font-bold text-white hover:bg-blue-600"
+		>
+			Scan Image
 		</button>
-		{#if open}
-			<div
-				class="dropdown-menu absolute right-0 z-10 mt-2 w-48 rounded bg-white text-black shadow-lg"
-				role="menu"
-				tabindex="0"
-				style="top: 90%;"
-			>
-				{#each icons as icon}
-					<button
-						class="block px-4 py-2 hover:bg-gray-100"
-						data-option={icon}
-						on:click={() => (selectedImage = icon)}
-						role="menuitem"
-						tabindex="0"
-					>
-						<img src={icon} alt="icon option" class="image-option" width="100" height="100" />
-					</button>
-				{/each}
+		{#if scan}
+			<!-- Contenedor relativo para el botón y dropdown -->
+			<div class="relative">
+				<!-- Botón de selección -->
+				<button
+					class="rounded border bg-white px-4 py-2 text-black hover:bg-gray-100"
+					on:click={() => (open = !open)}
+				>
+					Seleccionar Imagen
+				</button>
+
+				<!-- Menú desplegable debajo del botón "Seleccionar Imagen" -->
+				{#if open}
+					<div class="absolute right-0 z-20 mt-2 w-52 rounded border bg-white text-black shadow-lg">
+						{#each icons as icon}
+							<button
+								class="flex w-full justify-center px-4 py-2 hover:bg-gray-100"
+								on:click={() => {
+									selectedImage = icon;
+									open = false;
+								}}
+							>
+								<img src={icon} alt="icon" class="h-20 w-20 object-contain" />
+							</button>
+						{/each}
+					</div>
+				{/if}
 			</div>
 		{/if}
 	</div>
