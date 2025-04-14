@@ -6,7 +6,20 @@
 	let icons: string[] = [];
 	let selectedImage: string | null = null;
 	let scan: boolean = false;
-	// Función que maneja la selección de imagen
+
+	let imageEl: HTMLImageElement;
+	let canvasEl: HTMLCanvasElement;
+
+	let isSelecting = false;
+	let startX = 0;
+	let startY = 0;
+	let currentX = 0;
+	let currentY = 0;
+
+	let croppedImage: string | null = null;
+
+	let imageSrc: string = '/tu-imagen.jpg';
+
 	function handleClick(): void {
 		if (selectedImage) {
 			alert(`Selected image: ${selectedImage}`);
@@ -16,21 +29,6 @@
 		}
 	}
 
-	// Cargar imágenes de una API
-	onMount(async () => {
-		try {
-			const res = await fetch('/api/icons');
-			if (!res.ok) {
-				throw new Error(`Error fetching icons: ${res.statusText}`);
-			}
-			const data: string[] = await res.json();
-			icons = data;
-		} catch (err) {
-			console.error('Failed to load icons:', err);
-		}
-	});
-
-	// Cambiar la imagen principal cuando se selecciona un archivo
 	function handleFileChange(event: Event): void {
 		const file = (event.target as HTMLInputElement).files?.[0];
 		if (file) {
@@ -38,10 +36,92 @@
 			reader.onload = (e) => {
 				if (e.target) {
 					selectedImage = e.target.result as string;
+					croppedImage = null;
+					scan = false;
 				}
 			};
 			reader.readAsDataURL(file);
 		}
+	}
+
+	onMount(async () => {
+		try {
+			const res = await fetch('/api/icons');
+			if (!res.ok) throw new Error(`Error fetching icons: ${res.statusText}`);
+			const data: string[] = await res.json();
+			icons = data;
+		} catch (err) {
+			console.error('Failed to load icons:', err);
+		}
+	});
+
+	function startSelection(event: MouseEvent) {
+		if (scan) {
+			const rect = canvasEl.getBoundingClientRect();
+			startX = event.clientX - rect.left;
+			startY = event.clientY - rect.top;
+			currentX = startX;
+			currentY = startY;
+			isSelecting = true;
+		}
+	}
+
+	function updateSelection(event: MouseEvent) {
+		if (!isSelecting) return;
+		const rect = canvasEl.getBoundingClientRect();
+		currentX = event.clientX - rect.left;
+		currentY = event.clientY - rect.top;
+		drawSelection();
+	}
+
+	function endSelection() {
+		if (!isSelecting) return;
+		isSelecting = false;
+		recortarImagen();
+	}
+
+	function drawSelection() {
+		if (scan) {
+			const ctx = canvasEl.getContext('2d');
+			if (!ctx) return;
+			ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+			ctx.drawImage(imageEl, 0, 0, canvasEl.width, canvasEl.height);
+			ctx.strokeStyle = 'red';
+			ctx.lineWidth = 2;
+			ctx.strokeRect(startX, startY, currentX - startX, currentY - startY);
+		}
+	}
+
+	function recortarImagen() {
+		const width = currentX - startX;
+		const height = currentY - startY;
+
+		// Calculamos escalas entre imagen visual y real
+		const scaleX = imageEl.naturalWidth / imageEl.clientWidth;
+		const scaleY = imageEl.naturalHeight / imageEl.clientHeight;
+
+		// Creamos canvas temporal para el recorte
+		const tempCanvas = document.createElement('canvas');
+		tempCanvas.width = Math.abs(width * scaleX);
+		tempCanvas.height = Math.abs(height * scaleY);
+
+		const tempCtx = tempCanvas.getContext('2d');
+		if (!tempCtx) return;
+
+		// Extraemos la parte recortada usando escalas correctas
+		tempCtx.drawImage(
+			imageEl,
+			Math.min(startX, currentX) * scaleX,
+			Math.min(startY, currentY) * scaleY,
+			Math.abs(width) * scaleX,
+			Math.abs(height) * scaleY,
+			0,
+			0,
+			Math.abs(width) * scaleX,
+			Math.abs(height) * scaleY
+		);
+
+		croppedImage = tempCanvas.toDataURL('image/png');
 	}
 </script>
 
@@ -62,23 +142,53 @@
 				<button class="py2 block px-4 hover:bg-amber-400" on:click={() => alert('CNN Model')}
 					>Yolo Model</button
 				>
-				<button class="py2 block px-4 hover:bg-amber-400" on:click={() => (openCNN = false)}>
-					Close
-				</button>
+				<button class="py2 block px-4 hover:bg-amber-400" on:click={() => (openCNN = false)}
+					>Close</button
+				>
 			</div>
 		{/if}
 	</div>
 </header>
 
 <main class="flex flex-col items-center justify-center space-y-6 py-10">
-	<!-- Imagen seleccionada o archivo -->
-	{#if selectedImage}
-		<img src={selectedImage} alt="Selected preview" class="mb-4 h-auto w-64 rounded shadow" />
-	{:else}
-		<img src="/image.png" alt="Reference" class="mb-4 h-auto w-64 rounded shadow" />
-	{/if}
+	<!-- Imagen con canvas -->
 
-	<!-- Cargar imagen desde archivo -->
+	<!-- Imagen original y recorte al lado -->
+	<div class="flex items-start gap-8">
+		<!-- Imagen con canvas -->
+		<div class="relative w-[1080px]">
+			<img
+				bind:this={imageEl}
+				src={selectedImage || '/image.png'}
+				alt="Imagen para recorte"
+				class="h-auto w-full rounded shadow"
+				on:load={() => {
+					if (canvasEl && imageEl) {
+						canvasEl.width = imageEl.clientWidth;
+						canvasEl.height = imageEl.clientHeight;
+						drawSelection();
+					}
+				}}
+			/>
+			<canvas
+				bind:this={canvasEl}
+				class="absolute top-0 left-0 z-10"
+				on:mousedown={startSelection}
+				on:mousemove={updateSelection}
+				on:mouseup={endSelection}
+			/>
+		</div>
+
+		<!-- Imagen recortada -->
+		{#if croppedImage}
+			<div class="text-center">
+				<h2 class="mb-2 font-semibold">Imagen recortada:</h2>
+				<img src={croppedImage} alt="Recorte" class="max-w-[200px] rounded border shadow" />
+			</div>
+		{/if}
+	</div>
+
+	<!-- Input para cargar imagen -->
 	<input
 		type="file"
 		accept="image/*"
@@ -86,21 +196,17 @@
 		class="mb-6 rounded border px-4 py-2"
 	/>
 
-	<!-- Botón de acción -->
-
-	<!-- Contenedor centrado con botones en línea -->
+	<!-- Botones -->
 	<div class="relative mt-8 flex items-center justify-center space-x-4">
-		<!-- Botón principal -->
 		<button
 			on:click={handleClick}
 			class="rounded bg-blue-500 px-4 py-2 font-bold text-white hover:bg-blue-600"
 		>
 			Scan Image
 		</button>
+
 		{#if scan}
-			<!-- Contenedor relativo para el botón y dropdown -->
 			<div class="relative">
-				<!-- Botón de selección -->
 				<button
 					class="rounded border bg-white px-4 py-2 text-black hover:bg-gray-100"
 					on:click={() => (open = !open)}
@@ -108,15 +214,18 @@
 					Seleccionar Imagen
 				</button>
 
-				<!-- Menú desplegable debajo del botón "Seleccionar Imagen" -->
 				{#if open}
-					<div class="absolute right-0 z-20 mt-2 w-52 rounded border bg-white text-black shadow-lg">
+					<div
+						class="absolute right-0 z-20 mt-2 max-h-60 w-52 overflow-y-auto rounded border bg-white text-black shadow-lg"
+					>
 						{#each icons as icon}
 							<button
 								class="flex w-full justify-center px-4 py-2 hover:bg-gray-100"
 								on:click={() => {
 									selectedImage = icon;
 									open = false;
+									scan = false;
+									croppedImage = null;
 								}}
 							>
 								<img src={icon} alt="icon" class="h-20 w-20 object-contain" />
