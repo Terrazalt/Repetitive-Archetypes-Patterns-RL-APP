@@ -18,8 +18,6 @@
 
 	let croppedImage: string | null = null;
 
-	let imageSrc: string = '/tu-imagen.jpg';
-
 	function handleClick(): void {
 		if (selectedImage) {
 			alert(`Selected image: ${selectedImage}`);
