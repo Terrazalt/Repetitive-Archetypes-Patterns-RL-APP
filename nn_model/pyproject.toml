@@ -1,0 +1,11 @@
+[project]
+name = "nn-model"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "keyring>=8.7",
+    "ultralytics>=8.3.128",
+    "yolo>=0.3.1",
+]
