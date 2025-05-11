@@ -7,8 +7,9 @@ __pycache__/
 *.so
 
 
-dl/
-#Images
+
+*.jpg
+*.png
 
 data/
 *.zip
