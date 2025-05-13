@@ -3,7 +3,7 @@ from ultralytics import YOLO as _YOLO
 from PIL import Image
 import numpy as np
  
-class YOLO:
+class YoloBestModel:
     def __init__(self, model_path):
         self.model = _YOLO(model_path)
     
