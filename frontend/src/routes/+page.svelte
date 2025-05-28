@@ -169,7 +169,7 @@
 		if (file) {
 			const reader = new FileReader();
 			reader.onload = (e) => {
-				selectedImage = e.target.result as string;
+				selectedImage = e.target?.result as string;
 				croppedImage = null;
 				scan = false;
 				detections = [];
