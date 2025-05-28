@@ -1,46 +1,13 @@
 import { createEnv } from "@t3-oss/env-core";
-
 import { z } from "zod";
 
 export const env = createEnv({
-  server: {
-    NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-    // AUTHORIZATION_KEY: z.string().min(5),
-    YOLO_API_KEY: z.string(),
-    YOLO_ENDPOINT: z.string(),
-    BOUNDING_BOXES_ENDPOINT: z.string(),
-    // CURRENT_HOSTNAME: z.string().url().default("http://localhost:8080"),
-    //
-
-    // PROSODY_PRIVATE_ENDPOINT: z.string().url(),
-  },
-
-  /**
-   * The prefix that client-side variables must have. This is enforced both at
-   * a type-level and at runtime.
-   */
   clientPrefix: "PUBLIC_",
-
-  client: {},
-
-  /**
-   * What object holds the environment variables at runtime. This is usually
-   * `process.env` or `import.meta.env`.
-   */
-  runtimeEnv: process.env,
-
-  /**
-   * By default, this library will feed the environment variables directly to
-   * the Zod validator.
-   *
-   * This means that if you have an empty string for a value that is supposed
-   * to be a number (e.g. `PORT=` in a ".env" file), Zod will incorrectly flag
-   * it as a type mismatch violation. Additionally, if you have an empty string
-   * for a value that is supposed to be a string with a default value (e.g.
-   * `DOMAIN=` in an ".env" file), the default value will never be applied.
-   *
-   * In order to solve these issues, we recommend that all new projects
-   * explicitly specify this option as true.
-   */
+  client: {
+    PUBLIC_YOLO_API_KEY: z.string(),
+    PUBLIC_YOLO_ENDPOINT: z.string(),
+    PUBLIC_BOUNDING_BOXES_ENDPOINT: z.string(),
+  },
+  runtimeEnv: import.meta.env,
   emptyStringAsUndefined: true,
 });
