@@ -46,7 +46,7 @@ class BodySchema(BaseModel):
     COCO_json: CocoBoundingBoxes
 
 
-@router.post("/detect")
+@router.post("")
 async def detect(
     image: UploadFile = File(...),
     COCO_json: str = Form(...),
