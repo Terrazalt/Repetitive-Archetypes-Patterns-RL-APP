@@ -81,7 +81,7 @@ async def detect(
     with open(coco_json_path, "w") as f:
         json.dump(json.loads(COCO_json), f)
 
-    rf = Roboflow(api_key=os.getenv("ROBOFLOW_API_KEY"))
+    rf = roboflow.Roboflow(api_key=os.getenv("ROBOFLOW_API_KEY"))
     project = rf.workspace().project(os.getenv("ROBOFLOW_PROJECT_NAME"))
     upload_result = project.upload(
         image_path=image_path,

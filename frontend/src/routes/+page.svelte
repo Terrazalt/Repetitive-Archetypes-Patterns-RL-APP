@@ -37,6 +37,7 @@
 	const YOLO_API_KEY = import.meta.env.VITE_YOLO_API_KEY;
 	const YOLO_ENDPOINT = import.meta.env.VITE_YOLO_ENDPOINT;
 	const BOUNDING_BOXES_ENDPOINT = import.meta.env.VITE_BOUNDING_BOXES_ENDPOINT;
+	const ADD_IMAGE_ENDPOINT = import.meta.env.VITE_YOLO_ADD_TRAIN_IMAGE;
 
 	// -------- Bounding boxes: drag, resize, crear --------
 	function startSelection(event: MouseEvent) {
@@ -207,8 +208,10 @@
 		}
 	});
 
-	async function exportImageAndBoxes() {
+	async function onClickExportDownloadAndUpload() {
 		if (!imageEl) return;
+
+		// 1. Render canvas
 		const canvas = document.createElement('canvas');
 		canvas.width = imageNaturalWidth;
 		canvas.height = imageNaturalHeight;
@@ -216,6 +219,7 @@
 		if (!ctx) return;
 		ctx.drawImage(imageEl, 0, 0, canvas.width, canvas.height);
 
+		// Dibuja bounding boxes si corresponde
 		if (exportWithBoxes) {
 			ctx.save();
 			ctx.lineWidth = 4;
@@ -226,22 +230,30 @@
 			});
 			ctx.restore();
 		}
-		canvas.toBlob((blob) => {
-			if (blob) {
-				const url = URL.createObjectURL(blob);
-				const a = document.createElement('a');
-				a.href = url;
-				a.download = exportWithBoxes ? 'bounding_boxes.png' : 'image_clean.png';
-				a.click();
-				URL.revokeObjectURL(url);
-			}
-		}, 'image/png');
 
+		// 2. Canvas a blob para imagen
+		const imageBlob: Blob = await new Promise((resolve) =>
+			canvas.toBlob((blob) => resolve(blob!), 'image/png')
+		);
+
+		const imageFileName = exportWithBoxes ? 'bounding_boxes.png' : 'image_clean.png';
+
+		// 3. Descarga la imagen renderizada al usuario
+		const imageUrl = URL.createObjectURL(imageBlob);
+		const a = document.createElement('a');
+		a.href = imageUrl;
+		a.download = imageFileName;
+		document.body.appendChild(a);
+		a.click();
+		a.remove();
+		URL.revokeObjectURL(imageUrl);
+
+		// 4. Construye el JSON COCO
 		const coco = {
 			images: [
 				{
 					id: 1,
-					file_name: exportWithBoxes ? 'bounding_boxes.png' : 'image_clean.png',
+					file_name: imageFileName,
 					width: imageNaturalWidth,
 					height: imageNaturalHeight
 				}
@@ -265,13 +277,45 @@
 				}))
 			]
 		};
-		const blob2 = new Blob([JSON.stringify(coco, null, 2)], { type: 'application/json' });
-		const url2 = URL.createObjectURL(blob2);
+
+		// 5. Descarga el COCO JSON
+		const cocoBlob = new Blob([JSON.stringify(coco, null, 2)], { type: 'application/json' });
+		const cocoUrl = URL.createObjectURL(cocoBlob);
 		const a2 = document.createElement('a');
-		a2.href = url2;
-		a2.download = 'bounding_boxes.json';
+		a2.href = cocoUrl;
+		a2.download = imageFileName.replace('.png', '.json');
+		document.body.appendChild(a2);
 		a2.click();
-		URL.revokeObjectURL(url2);
+		a2.remove();
+		URL.revokeObjectURL(cocoUrl);
+
+		// 6. Prepara el FormData
+		const formData = new FormData();
+		formData.append('image', imageBlob, imageFileName);
+		formData.append('COCO_json', JSON.stringify(coco));
+
+		// 7. Sube ambos archivos al endpoint para cargar en Roboflow
+		try {
+			const response = await fetch(ADD_IMAGE_ENDPOINT, {
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${YOLO_API_KEY}`
+					// NUNCA agregues Content-Type aquí cuando usas FormData
+				},
+				body: formData
+			});
+
+			if (!response.ok) {
+				const error = await response.text();
+				alert('Error subiendo a Roboflow: ' + error);
+				return;
+			}
+
+			const data = await response.json();
+			alert('Subido a Roboflow: ' + JSON.stringify(data));
+		} catch (err) {
+			alert('Error en la petición: ' + err);
+		}
 	}
 </script>
 
@@ -382,7 +426,7 @@
 				<span class="ml-1">{exportWithBoxes ? 'Sí, incluir' : 'No, solo imagen limpia'}</span>
 			</div>
 			<button
-				on:click={exportImageAndBoxes}
+				on:click={onClickExportDownloadAndUpload}
 				class="rounded bg-fuchsia-700 px-4 py-2 font-bold text-white hover:bg-fuchsia-900"
 			>
 				Exportar (PNG + COCO)
