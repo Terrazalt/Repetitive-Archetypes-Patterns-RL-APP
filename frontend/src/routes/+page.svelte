@@ -38,7 +38,7 @@
 	const YOLO_ENDPOINT = import.meta.env.VITE_YOLO_ENDPOINT;
 	const BOUNDING_BOXES_ENDPOINT = import.meta.env.VITE_BOUNDING_BOXES_ENDPOINT;
 	const ADD_IMAGE_ENDPOINT = import.meta.env.VITE_YOLO_ADD_TRAIN_IMAGE;
-
+	const RETRAIN_ENDPOINT = import.meta.env.VITE_YOLO_RETRAIN;
 	// -------- Bounding boxes: drag, resize, crear --------
 	function startSelection(event: MouseEvent) {
 		if (event.target !== canvasEl) return;
@@ -249,6 +249,30 @@
 		URL.revokeObjectURL(imageUrl);
 
 		// 4. Construye el JSON COCO
+		const labels = Array.from(new Set(detections.map((d) => d.label)));
+		const label2id = Object.fromEntries(labels.map((l, idx) => [l, idx]));
+
+		// 2. Crea las categorías usando el mismo orden
+		const categories = labels.map((l, idx) => ({
+			id: idx,
+			name: l
+		}));
+
+		// 3. Anotaciones con el category_id correcto según el mapa
+		const annotations = detections.map((det, i) => {
+			const [x0, y0, x1, y1] = det.xyxy[0];
+			return {
+				id: i + 1,
+				image_id: 1,
+				category_id: label2id[det.label], // ¡aquí está el cambio!
+				bbox: [x0, y0, x1 - x0, y1 - y0],
+				area: (x1 - x0) * (y1 - y0),
+				iscrowd: 0,
+				label: det.label
+			};
+		});
+
+		// 4. Estructura final COCO
 		const coco = {
 			images: [
 				{
@@ -258,24 +282,8 @@
 					height: imageNaturalHeight
 				}
 			],
-			annotations: detections.map((det, i) => {
-				const [x0, y0, x1, y1] = det.xyxy[0];
-				return {
-					id: i + 1,
-					image_id: 1,
-					category_id: det.class_id ?? 0,
-					bbox: [x0, y0, x1 - x0, y1 - y0],
-					area: (x1 - x0) * (y1 - y0),
-					iscrowd: 0,
-					label: det.label
-				};
-			}),
-			categories: [
-				...Array.from(new Set(detections.map((d) => d.label))).map((l, idx) => ({
-					id: idx,
-					name: l
-				}))
-			]
+			annotations,
+			categories
 		};
 
 		// 5. Descarga el COCO JSON
@@ -287,6 +295,7 @@
 		document.body.appendChild(a2);
 		a2.click();
 		a2.remove();
+		URL.revokeObjectURL(cocoUrl);
 		URL.revokeObjectURL(cocoUrl);
 
 		// 6. Prepara el FormData
@@ -316,6 +325,16 @@
 		} catch (err) {
 			alert('Error en la petición: ' + err);
 		}
+	}
+
+	async function fetchRetrain() {
+		const response = await fetch(RETRAIN_ENDPOINT, {
+			method: 'GET'
+		});
+		if (!response.ok) {
+			alert('Error al solicitar reentrenamiento: ' + response.statusText);
+		}
+		alert('Reentrenamiento solicitado correctamente');
 	}
 </script>
 
@@ -429,7 +448,13 @@
 				on:click={onClickExportDownloadAndUpload}
 				class="rounded bg-fuchsia-700 px-4 py-2 font-bold text-white hover:bg-fuchsia-900"
 			>
-				Exportar (PNG + COCO)
+				Cargar Imagen en Dataset
+			</button>
+			<button
+				on:click={fetchRetrain}
+				class="rounded bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-700"
+			>
+				Reentrenar modelo
 			</button>
 			{#if scan}
 				<div class="relative">

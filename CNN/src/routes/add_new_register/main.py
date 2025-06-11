@@ -53,6 +53,10 @@ async def detect(
     authorization: str = Header(None, alias="Authorization"),
 ):
     # --- API key guard ---
+    print(os.getenv("CNN_API_KEY"))
+    print(os.getenv("ROBOFLOW_API_KEY"))
+    print(os.getenv("PROJECT_ID"))
+    print(os.getenv("WORKSPACE_ID"))
     api_key = os.getenv("CNN_API_KEY")
     if api_key:
         if not authorization:
@@ -81,11 +85,23 @@ async def detect(
     with open(coco_json_path, "w") as f:
         json.dump(json.loads(COCO_json), f)
 
-    rf = roboflow.Roboflow(api_key=os.getenv("ROBOFLOW_API_KEY"))
-    project = rf.workspace().project(os.getenv("ROBOFLOW_PROJECT_NAME"))
-    upload_result = project.upload(
-        image_path=image_path,
-        annotation_path=coco_json_path,
-        split="train",  # o "valid" o "test"
-    )
+    try:
+        rf = Roboflow(api_key=os.getenv("ROBOFLOW_API_KEY"))
+        workspace = (
+            rf.workspace()
+        )  # Ojo, a veces necesita el nombre: rf.workspace("tu_workspace")
+        project = workspace.project(os.getenv("PROJECT_ID"))
+        upload_result = project.upload(
+            image_path=image_path,
+            annotation_path=coco_json_path,
+            split="train",  # o "valid" o "test"
+        )
+    except Exception as e:
+        # Imprime el error real (si es HTML, el status code ayuda)
+        import traceback
+
+        print("Roboflow Upload Error:", e)
+        traceback.print_exc()
+        raise HTTPException(500, f"Roboflow upload failed: {str(e)}")
+
     return {"detail": "Image uploaded to Roboflow", "roboflow_response": upload_result}
