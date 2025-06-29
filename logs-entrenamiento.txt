@@ -9,4 +9,7 @@ PRIMER ENTRENAMIENTO
 
 SEGUNDO ENTRENAMIENTO
 
-
+      Epoch    GPU_mem   box_loss   cls_loss   dfl_loss  Instances       Size
+      10/10      2.96G     0.7765     0.6137     0.9311         31       1024: 100%|██████████| 100/100 [00:53<00:00,  1.88it/s]
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100%|██████████| 2/2 [00:00<00:00,  4.39it/s]
+                   all         16        342     0.0333     0.0417     0.04  57     0.0457
