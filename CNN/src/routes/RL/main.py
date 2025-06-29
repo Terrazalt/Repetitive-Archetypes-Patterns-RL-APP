@@ -33,7 +33,7 @@ def retrain_model():
 
     model.train(
         data="/home/terrazalt/Documents/magister/Repetitive-Archetypes-Patterns-RL-APP/CNN/Repetitive-Patterns-MTI-2/data.yaml",
-        epochs=1
+        epochs=1,
         imgsz=(768, 1024),
         batch=4,
         name="train",
