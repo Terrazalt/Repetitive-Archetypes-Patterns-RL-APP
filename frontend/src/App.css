@@ -1,3 +1,6 @@
+/* Bootstrap CSS para sveltestrap */
+@import 'bootstrap/dist/css/bootstrap.min.css';
+
 @import 'tailwindcss';
 @plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
