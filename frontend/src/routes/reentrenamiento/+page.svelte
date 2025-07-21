@@ -27,8 +27,8 @@
 	let rlhfConfig = $state<{
 		enable: boolean;
 		epoch_trigger: number;
-		reward_cls: number;
 		reward_factor: number;
+		feedback_quality?: number;
 	} | null>(null);
 	let finalModelPath = $state('');
 

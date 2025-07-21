@@ -279,24 +279,28 @@ class RLHFTrainer:
                 reward_factor = -0.1 * (
                     overall_quality - 0.5
                 )  # -0.02 a -0.05 (negativo = menos loss)
-                reward_cls = 1  # Recompensa positiva
+                interpretation = (
+                    "Buenas predicciones - Factor negativo (DISMINUYE loss general)"
+                )
             elif overall_quality <= 0.3:
                 # Predicciones malas: AUMENTAR loss (factor positivo)
                 reward_factor = 0.1 * (
                     0.5 - overall_quality
                 )  # +0.02 a +0.02 (positivo = más loss)
-                reward_cls = 3  # Penalización
+                interpretation = (
+                    "Malas predicciones - Factor positivo (AUMENTA loss general)"
+                )
             else:
                 # Predicciones regulares: ajuste mínimo
                 reward_factor = 0.05 * (overall_quality - 0.5)  # -0.01 a +0.01
-                reward_cls = 2  # Neutro
+                interpretation = "Predicciones regulares - Ajuste mínimo"
 
-            # Crear configuración RLHF en el formato esperado
+            # Crear configuración RLHF CORREGIDA - sin reward_cls
             rlhf_config = {
                 "enable": True,
                 "epoch_trigger": self.current_epoch,  # Aplicar desde la época actual
-                "reward_cls": reward_cls,
                 "reward_factor": round(reward_factor, 3),
+                "feedback_quality": overall_quality,  # Para tracking
             }
 
             # Agregar metadatos para tracking (opcional)
@@ -305,11 +309,7 @@ class RLHFTrainer:
                 "epoch_when_feedback_given": self.current_epoch,
                 "original_quality_score": overall_quality,
                 "human_comments": comments,
-                "interpretation": {
-                    1: "Buenas predicciones - Factor negativo (DISMINUYE loss)",
-                    2: "Predicciones regulares - Ajuste mínimo",
-                    3: "Malas predicciones - Factor positivo (AUMENTA loss)",
-                }[reward_cls],
+                "interpretation": interpretation,
             }
 
             # Guardar configuración RLHF
@@ -319,9 +319,8 @@ class RLHFTrainer:
 
             print(f"✅ Configuración RLHF guardada en: {self.rlhf_config_path}")
             print(f"   - Calidad general: {overall_quality:.3f}")
-            print(f"   - Reward class: {reward_cls}")
             print(f"   - Reward factor: {reward_factor:.3f}")
-            print(f"   - Efecto: {rlhf_config['_metadata']['interpretation']}")
+            print(f"   - Efecto: {interpretation}")
 
             return rlhf_config
 
@@ -360,8 +359,8 @@ class RLHFTrainer:
             with open(self.rlhf_config_path, "r") as f:
                 rlhf_config = json.load(f)
 
-            print(f"📊 Aplicando reward_cls: {rlhf_config['reward_cls']}")
             print(f"📊 Aplicando reward_factor: {rlhf_config['reward_factor']}")
+            print(f"📊 Calidad feedback: {rlhf_config.get('feedback_quality', 'N/A')}")
             print(f"📊 Desde época: {rlhf_config['epoch_trigger']}")
 
             # Usar el dataset configurado si no se especifica
@@ -383,7 +382,7 @@ class RLHFTrainer:
             )
 
             self.current_epoch += additional_epochs
-            print(f"✅ Entrenamiento con feedback completado.")
+            print("✅ Entrenamiento con feedback completado.")
             print(f"📈 Épocas totales: {self.current_epoch}")
 
             return self.model
