@@ -48,8 +48,8 @@ class FeedbackResponse(BaseModel):
     status: str
     message: str
     rlhf_config: Dict[str, Any]
-    reward_cls: int
     reward_factor: float
+    feedback_quality: Optional[float] = None
 
 
 class ContinueTrainingResponse(BaseModel):
@@ -110,7 +110,7 @@ async def submit_human_feedback(request: FeedbackRequest):
     """
     Procesa el feedback humano y genera la configuración RLHF:
     1. Recibe la calidad general (0.0 - 1.0)
-    2. Calcula reward_factor y reward_cls
+    2. Calcula reward_factor basado en calidad
     3. Genera rlhf_config.json
     4. Retorna la configuración aplicada
     """
@@ -139,8 +139,8 @@ async def submit_human_feedback(request: FeedbackRequest):
             status="feedback_processed",
             message=f"Feedback procesado. Reward calculado: {rlhf_config['reward_factor']:.3f}",
             rlhf_config=rlhf_config,
-            reward_cls=rlhf_config["reward_cls"],
             reward_factor=rlhf_config["reward_factor"],
+            feedback_quality=rlhf_config.get("feedback_quality"),
         )
 
     except Exception as e:
