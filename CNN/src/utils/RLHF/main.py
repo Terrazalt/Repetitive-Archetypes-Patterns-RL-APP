@@ -1,5 +1,6 @@
 import os
 import json
+import shutil
 from pathlib import Path
 from typing import List, Dict, Any
 from ultralytics import YOLO
@@ -8,12 +9,24 @@ import io
 import base64
 import yaml
 from datetime import datetime
+from roboflow import Roboflow
+from dotenv import load_dotenv
+
+# Cargar variables de entorno
+load_dotenv()
+
+
+# Constante para la ruta del dataset del proyecto
+DEFAULT_DATA_YAML = "/home/terrazalt/Documents/magister/Repetitive-Archetypes-Patterns-RL-APP/CNN/Repetitive-Patterns-MTI-2/data.yaml"
 
 
 class RLHFTrainer:
     """
     Clase principal para manejar el entrenamiento con Human-in-the-Loop Feedback (RLHF)
     """
+
+    # Constante para el dataset del proyecto
+    DEFAULT_DATASET_PATH = "/home/terrazalt/Documents/magister/Repetitive-Archetypes-Patterns-RL-APP/CNN/Repetitive-Patterns-MTI-2/data.yaml"
 
     def __init__(self, model_path: str = None, images_dir: str = None):
         """
@@ -42,6 +55,43 @@ class RLHFTrainer:
         print(f"  - Imágenes: {self.images_dir}")
         print(f"  - Config RLHF: {self.rlhf_config_path}")
 
+    def prepare_roboflow_dataset(self) -> str:
+        """
+        Prepara el dataset desde Roboflow y realiza backup del modelo
+
+        Returns:
+            Ruta al archivo data.yaml del dataset preparado
+        """
+        try:
+            print("📡 Preparando dataset desde Roboflow...")
+
+            # Paso 1: Backup del modelo actual
+            backup_path = (
+                f"best_models/best_model_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pt"
+            )
+            shutil.copy(self.model_path, backup_path)
+            print(f"💾 Backup del modelo creado en: {backup_path}")
+
+            # Paso 2: Conectar a Roboflow
+            rf = Roboflow(api_key=os.getenv("ROBOFLOW_API_KEY"))
+            project = rf.workspace(os.getenv("WORKSPACE_ID")).project(
+                os.getenv("PROJECT_ID")
+            )
+            version = project.version(2)
+
+            print("🔗 Conectado a Roboflow, descargando dataset...")
+            dataset = version.download("yolov8")
+
+            # Paso 3: Usar el data.yaml local configurado
+            data_yaml_path = self.DEFAULT_DATASET_PATH
+            print(f"📊 Dataset preparado. Usando data.yaml: {data_yaml_path}")
+
+            return data_yaml_path
+
+        except Exception as e:
+            print(f"❌ Error preparando dataset Roboflow: {e}")
+            raise e
+
     def load_model(self) -> YOLO:
         """
         Carga el modelo YOLO desde la ruta especificada
@@ -58,13 +108,16 @@ class RLHFTrainer:
             print(f"❌ Error al cargar el modelo: {e}")
             raise e
 
-    def initial_training(self, epochs: int = 3, data_yaml: str = None) -> YOLO:
+    def initial_training(
+        self, epochs: int = 3, data_yaml: str | None = None, use_roboflow: bool = True
+    ) -> YOLO:
         """
         Realiza un entrenamiento inicial del modelo por pocas épocas
 
         Args:
             epochs: Número de épocas para el entrenamiento inicial (por defecto 3)
             data_yaml: Ruta al archivo YAML de configuración de datos
+            use_roboflow: Si usar Roboflow para preparar el dataset (por defecto True)
 
         Returns:
             Modelo entrenado
@@ -75,18 +128,27 @@ class RLHFTrainer:
         try:
             print(f"🚀 Iniciando entrenamiento inicial por {epochs} épocas...")
 
-            # Si no se proporciona data_yaml, podemos usar el dataset por defecto o crear uno simple
+            # Si no se proporciona data_yaml, preparar dataset
             if data_yaml is None:
-                # Por ahora usaremos un dataset básico, luego lo configuraremos mejor
-                print(
-                    "⚠️  No se especificó data_yaml. Usando configuración por defecto."
-                )
-                # Aquí podrías usar un dataset como coco8.yaml para pruebas
-                data_yaml = "coco8.yaml"  # Dataset de ejemplo pequeño
+                if use_roboflow:
+                    # Preparar dataset desde Roboflow
+                    data_yaml = self.prepare_roboflow_dataset()
+                else:
+                    # Usar el dataset real disponible en el proyecto
+                    data_yaml = self.DEFAULT_DATASET_PATH
+                    print(
+                        f"⚠️  No se especificó data_yaml. Usando dataset del proyecto: {data_yaml}"
+                    )
 
-            # Entrenar el modelo
+            # Entrenar el modelo con parámetros específicos para Roboflow
             results = self.model.train(
-                data=data_yaml, epochs=epochs, patience=50, save=True, verbose=True
+                data=data_yaml,
+                epochs=epochs,
+                imgsz=640,
+                batch=16,
+                patience=50,
+                save=True,
+                verbose=True,
             )
 
             self.current_epoch += epochs
@@ -268,7 +330,7 @@ class RLHFTrainer:
             raise e
 
     def continue_training_with_feedback(
-        self, additional_epochs: int = 5, data_yaml: str = None
+        self, additional_epochs: int = 5, data_yaml: str | None = None
     ) -> YOLO:
         """
         Continúa el entrenamiento del modelo utilizando el feedback humano ya procesado
@@ -302,15 +364,18 @@ class RLHFTrainer:
             print(f"📊 Aplicando reward_factor: {rlhf_config['reward_factor']}")
             print(f"📊 Desde época: {rlhf_config['epoch_trigger']}")
 
-            # Usar el mismo data_yaml que antes si no se especifica
+            # Usar el dataset configurado si no se especifica
             if data_yaml is None:
-                data_yaml = "coco8.yaml"  # Temporal, luego usaremos el path real
+                data_yaml = self.DEFAULT_DATASET_PATH
+                print(f"⚠️  Usando dataset configurado: {data_yaml}")
 
-            # Continuar entrenamiento - el reward se aplicará automáticamente
-            # a través de la función de loss modificada que lee rlhf_config.json
+            # Continuar entrenamiento con parámetros optimizados para Roboflow
+            # El reward se aplicará automáticamente a través de la función de loss modificada
             self.model.train(
                 data=data_yaml,
                 epochs=additional_epochs,
+                imgsz=640,
+                batch=16,
                 patience=50,
                 save=True,
                 verbose=True,
@@ -331,12 +396,13 @@ class RLHFTrainer:
         self,
         initial_epochs: int = 3,
         feedback_epochs: int = 5,
-        data_yaml: str = None,
+        data_yaml: str | None = None,
         num_images: int = 4,
+        use_roboflow: bool = True,
     ) -> Dict:
         """
         Ejecuta el ciclo completo de RLHF:
-        1. Entrenamiento inicial
+        1. Entrenamiento inicial con dataset Roboflow
         2. Obtener predicciones para feedback
         3. (Espera feedback humano - se procesará externamente)
         4. Continuar entrenamiento con feedback
@@ -346,15 +412,18 @@ class RLHFTrainer:
             feedback_epochs: Épocas adicionales con feedback
             data_yaml: Ruta al archivo de configuración de datos
             num_images: Número de imágenes para feedback
+            use_roboflow: Si usar Roboflow para preparar el dataset (por defecto True)
 
         Returns:
             Diccionario con el estado del proceso y predicciones para feedback
         """
         try:
-            print("🔄 Iniciando ciclo completo RLHF...")
+            print("🔄 Iniciando ciclo completo RLHF con Roboflow...")
 
-            # Paso 1: Entrenamiento inicial
-            self.initial_training(epochs=initial_epochs, data_yaml=data_yaml)
+            # Paso 1: Entrenamiento inicial con Roboflow
+            self.initial_training(
+                epochs=initial_epochs, data_yaml=data_yaml, use_roboflow=use_roboflow
+            )
 
             # Paso 2: Obtener predicciones para feedback humano
             predictions = self.get_predictions_for_feedback(num_images=num_images)

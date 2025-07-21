@@ -44,19 +44,16 @@
 
 	async function loadAvailableDatasets() {
 		try {
-			// Simular datasets disponibles (en producción vendría del backend)
+			// Dataset real disponible en el proyecto
 			availableDatasets = [
-				'coco_subset.yaml', 
-				'custom_dataset.yaml', 
-				'validation_set.yaml',
-				'production_data.yaml'
+				'/home/terrazalt/Documents/magister/Repetitive-Archetypes-Patterns-RL-APP/CNN/Repetitive-Patterns-MTI-2/data.yaml'
 			];
+			// Seleccionar automáticamente el único dataset disponible
+			selectedDataset = availableDatasets[0];
 		} catch (error) {
 			console.error('Error loading datasets:', error);
 		}
-	}
-
-	async function startRetraining() {
+	}	async function startRetraining() {
 		if (!selectedDataset) {
 			alert('Por favor selecciona un dataset');
 			return;
@@ -310,12 +307,23 @@
 				>
 					<option value={null}>✨ Selecciona un dataset...</option>
 					{#each availableDatasets as dataset}
-						<option value={dataset}>📊 {dataset}</option>
+						<option value={dataset}>📊 {dataset.split('/').pop()}</option>
 					{/each}
 				</select>
 				<p class="text-sm text-blue-600 mt-2 font-medium">
-					💡 El reentrenamiento utilizará las imágenes existentes del dataset seleccionado
+					💡 El reentrenamiento utilizará las imágenes existentes del dataset del proyecto
 				</p>
+				
+				{#if selectedDataset}
+					<div class="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+						<p class="text-sm text-green-700 font-medium">
+							✅ Dataset seleccionado: <code class="bg-white px-1 rounded">{selectedDataset.split('/').pop()}</code>
+						</p>
+						<p class="text-xs text-green-600 mt-1">
+							Ruta completa: {selectedDataset}
+						</p>
+					</div>
+				{/if}
 				
 				<!-- Test Connection Button -->
 				<div class="mt-4 pt-4 border-t border-blue-200">
