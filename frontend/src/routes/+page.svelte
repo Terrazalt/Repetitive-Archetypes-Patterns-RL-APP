@@ -2,8 +2,7 @@
 	import { onMount } from 'svelte';
 
 	let open = false;
-	let sideMenuOpen = false;
-	let selectedModel = 'YOLO';
+	let openCNN = false;
 	let icons: string[] = [];
 	let selectedImage: string | null = null;
 	let scan = false;
@@ -339,67 +338,33 @@
 	}
 </script>
 
-
-<!-- Menú lateral deslizante -->
-{#if sideMenuOpen}
-	<!-- Overlay -->
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div 
-		class="fixed inset-0 bg-black bg-opacity-50 z-40" 
-		on:click={() => sideMenuOpen = false}
-	></div>
-{/if}
-
-<!-- Panel lateral -->
-<div class="fixed top-0 left-0 h-full w-80 bg-white shadow-lg transform transition-transform duration-300 ease-in-out z-50 {sideMenuOpen ? 'translate-x-0' : '-translate-x-full'}">
-	<div class="p-6">
-		<div class="flex justify-between items-center mb-6">
-			<h2 class="text-xl font-semibold text-gray-800">Seleccionar Modelo</h2>
-			<button 
-				on:click={() => sideMenuOpen = false}
-				class="text-gray-500 hover:text-gray-700 text-2xl"
+<header class="bg-amber-600 p-4 text-white">
+	<div class="relative container mx-auto flex items-center justify-between">
+		<h1 class="text-xl font-bold">Repetitive Archetypes Patterns Detector</h1>
+		<button on:click={() => (openCNN = !openCNN)}>
+			<span class="text-2xl">☰</span>
+		</button>
+		{#if openCNN}
+			<div
+				class="absolute right-0 z-10 mt-2 w-29 rounded bg-white text-black shadow-lg"
+				style="top: 100%;"
 			>
-				×
-			</button>
-		</div>
-		
-		<div class="space-y-3">
-			<button 
-				class="w-full text-left px-4 py-3 rounded-lg transition-colors {selectedModel === 'YOLO' ? 'bg-blue-100 text-blue-700 border-2 border-blue-300' : 'bg-gray-50 hover:bg-gray-100 text-gray-700'}"
-				on:click={() => {selectedModel = 'YOLO'; sideMenuOpen = false;}}
-			>
-				<div class="font-medium">YOLO</div>
-				<div class="text-sm opacity-75">You Only Look Once</div>
-			</button>
-			
-			<div class="border-t border-gray-200 my-2"></div>
-			
-			<button 
-				class="w-full text-left px-4 py-3 rounded-lg transition-colors {selectedModel === 'RetinaNet' ? 'bg-blue-100 text-blue-700 border-2 border-blue-300' : 'bg-gray-50 hover:bg-gray-100 text-gray-700'}"
-				on:click={() => {selectedModel = 'RetinaNet'; sideMenuOpen = false;}}
-			>
-				<div class="font-medium">RetinaNet</div>
-				<div class="text-sm opacity-75">Focal Loss for Dense Object Detection</div>
-			</button>
-		</div>
+				<button class="py2 block px-4 hover:bg-amber-400" on:click={() => alert('CNN Model')}
+					>CNN Model</button
+				>
+				<button class="py2 block px-4 hover:bg-amber-400" on:click={() => alert('Yolo Model')}
+					>Yolo Model</button
+				>
+				<button class="py2 block px-4 hover:bg-amber-400" on:click={() => (openCNN = false)}
+					>Close</button
+				>
+			</div>
+		{/if}
 	</div>
-</div>
+</header>
 
 <main class="flex flex-row justify-center space-x-8 py-10">
-	<!-- Botón para abrir menú lateral - posicionado a la izquierda -->
-	<div class="fixed top-20 left-4 z-30">
-		<button 
-			on:click={() => sideMenuOpen = true}
-			class="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm shadow-lg"
-		>
-			<span>🤖</span>
-			<span>{selectedModel}</span>
-		</button>
-	</div>
-
 	<div class="flex flex-col items-center gap-8">
-
 		<div class="relative w-[1080px]">
 			<img
 				bind:this={imageEl}
@@ -428,7 +393,6 @@
 			></canvas>
 			{#each detections as det, idx}
 				{#if det.xyxy && det.xyxy[0]}
-					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div
 						class="group absolute cursor-move border-2 border-red-500 bg-red-500/10 transition-all duration-200"
 						style="
@@ -468,12 +432,29 @@
 			class="mb-6 rounded border px-4 py-2"
 		/>
 
-		<div class="relative mt-4 flex flex-col items-center">
+		<div class="relative mt-4 flex flex-col items-center space-y-2">
 			<button
 				on:click={detectBoxes}
-				class="rounded bg-emerald-600 px-4 py-4 font-bold text-white hover:bg-emerald-700"
+				class="rounded bg-emerald-600 px-4 py-2 font-bold text-white hover:bg-emerald-700"
 			>
 				Scan Image
+			</button>
+			<div class="mb-3 flex items-center">
+				<label class="mr-2 font-bold">¿Incluir boxes en la imagen exportada?</label>
+				<input type="checkbox" bind:checked={exportWithBoxes} class="h-5 w-5 accent-fuchsia-700" />
+				<span class="ml-1">{exportWithBoxes ? 'Sí, incluir' : 'No, solo imagen limpia'}</span>
+			</div>
+			<button
+				on:click={onClickExportDownloadAndUpload}
+				class="rounded bg-fuchsia-700 px-4 py-2 font-bold text-white hover:bg-fuchsia-900"
+			>
+				Cargar Imagen en Dataset
+			</button>
+			<button
+				on:click={fetchRetrain}
+				class="rounded bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-700"
+			>
+				Reentrenar modelo
 			</button>
 			{#if scan}
 				<div class="relative">
