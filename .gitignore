@@ -5,7 +5,7 @@ __pycache__/
 runs/*
 # C extensions
 *.so
-
+best_model_*
 Repetitive-Patterns-MTI-2/
 
 *.jpg
