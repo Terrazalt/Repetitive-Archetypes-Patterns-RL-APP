@@ -34,7 +34,7 @@
     "@t3-oss/env-core": "^0.13.6",
     "dotenv": "^16.5.0",
     "sveltestrap": "^5.11.3",
-    "zod": "^3.25.32",
+    "zod": "^4.1.8",
     "zod-form-data": "^2.0.7"
   }
 }

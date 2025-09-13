@@ -1,11 +1,14 @@
 <script lang="ts">
     import { onMount } from 'svelte';
+    import {Models} from '../../utils/validators/index'
 
     let open = false;
     let openCNN = false;
     let icons: string[] = [];
     let selectedImage: string | null = null;
     let scan = false;
+
+    let model : Models
 
     let imageEl: HTMLImageElement;
     let canvasEl: HTMLCanvasElement;
@@ -349,10 +352,10 @@
 				class="absolute right-0 z-10 mt-2 w-29 rounded bg-white text-black shadow-lg"
 				style="top: 100%;"
 			>
-				<button class="py2 block px-4 hover:bg-amber-400" on:click={() => alert('CNN Model')}
-					>CNN Model</button
+				<button class="py2 block px-4 hover:bg-amber-400" on:click={() => model = Models.Retinanet}
+					>Retinanet</button
 				>
-				<button class="py2 block px-4 hover:bg-amber-400" on:click={() => alert('Yolo Model')}
+				<button class="py2 block px-4 hover:bg-amber-400" on:click={() => model = Models.Yolo}
 					>Yolo Model</button
 				>
 				<button class="py2 block px-4 hover:bg-amber-400" on:click={() => (openCNN = false)}
