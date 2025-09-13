@@ -1,341 +1,341 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+    import { onMount } from 'svelte';
 
-	let open = false;
-	let openCNN = false;
-	let icons: string[] = [];
-	let selectedImage: string | null = null;
-	let scan = false;
+    let open = false;
+    let openCNN = false;
+    let icons: string[] = [];
+    let selectedImage: string | null = null;
+    let scan = false;
 
-	let imageEl: HTMLImageElement;
-	let canvasEl: HTMLCanvasElement;
+    let imageEl: HTMLImageElement;
+    let canvasEl: HTMLCanvasElement;
 
-	let isSelecting = false;
-	let selectStartX = 0,
-		selectStartY = 0,
-		selectEndX = 0,
-		selectEndY = 0;
-	let croppedImage: string | null = null;
+    let isSelecting = false;
+    let selectStartX = 0,
+        selectStartY = 0,
+        selectEndX = 0,
+        selectEndY = 0;
+    let croppedImage: string | null = null;
 
-	let detections: {
-		xyxy: [[number, number, number, number]];
-		confidence: number;
-		class_id: number;
-		label: string;
-		manual?: boolean;
-	}[] = [];
-	let imageNaturalWidth = 1,
-		imageNaturalHeight = 1;
-	let imageDisplayWidth = 1,
-		imageDisplayHeight = 1;
-	let draggingIdx: number | null = null;
-	let resizingIdx: number | null = null;
-	let dragOffset = { x: 0, y: 0 };
-	let resizeStart = { x: 0, y: 0, boxW: 0, boxH: 0 };
-	let exportWithBoxes = false; // <-- Switch de exportación
+    let detections: {
+        xyxy: [[number, number, number, number]];
+        confidence: number;
+        class_id: number;
+        label: string;
+        manual?: boolean;
+    }[] = [];
+    let imageNaturalWidth = 1,
+        imageNaturalHeight = 1;
+    let imageDisplayWidth = 1,
+        imageDisplayHeight = 1;
+    let draggingIdx: number | null = null;
+    let resizingIdx: number | null = null;
+    let dragOffset = { x: 0, y: 0 };
+    let resizeStart = { x: 0, y: 0, boxW: 0, boxH: 0 };
+    let exportWithBoxes = false; // <-- Switch de exportación
 
-	const YOLO_API_KEY = import.meta.env.VITE_YOLO_API_KEY;
-	const YOLO_ENDPOINT = import.meta.env.VITE_YOLO_ENDPOINT;
-	const BOUNDING_BOXES_ENDPOINT = import.meta.env.VITE_BOUNDING_BOXES_ENDPOINT;
-	const ADD_IMAGE_ENDPOINT = import.meta.env.VITE_YOLO_ADD_TRAIN_IMAGE;
-	const RETRAIN_ENDPOINT = import.meta.env.VITE_YOLO_RETRAIN;
-	// -------- Bounding boxes: drag, resize, crear --------
-	function startSelection(event: MouseEvent) {
-		if (event.target !== canvasEl) return;
-		const rect = canvasEl.getBoundingClientRect();
-		isSelecting = true;
-		selectStartX = selectEndX = event.clientX - rect.left;
-		selectStartY = selectEndY = event.clientY - rect.top;
-	}
-	function updateSelection(event: MouseEvent) {
-		if (!isSelecting) return;
-		const rect = canvasEl.getBoundingClientRect();
-		selectEndX = event.clientX - rect.left;
-		selectEndY = event.clientY - rect.top;
-		drawSelection();
-	}
-	function endSelection() {
-		if (!isSelecting) return;
-		isSelecting = false;
-		const minW = 10,
-			minH = 10;
-		const w = Math.abs(selectEndX - selectStartX);
-		const h = Math.abs(selectEndY - selectStartY);
-		if (w >= minW && h >= minH) {
-			const scaleX = imageEl.naturalWidth / imageEl.clientWidth;
-			const scaleY = imageEl.naturalHeight / imageEl.clientHeight;
-			const x0 = Math.min(selectStartX, selectEndX) * scaleX;
-			const y0 = Math.min(selectStartY, selectEndY) * scaleY;
-			const x1 = Math.max(selectStartX, selectEndX) * scaleX;
-			const y1 = Math.max(selectStartY, selectEndY) * scaleY;
-			const label = prompt('Label del bounding box:', 'manual_box') || 'manual_box';
-			detections = [
-				...detections,
-				{
-					xyxy: [[x0, y0, x1, y1]],
-					confidence: 1,
-					class_id: 0,
-					label,
-					manual: true
-				}
-			];
-		}
-		clearSelection();
-	}
-	function drawSelection() {
-		if (!isSelecting) return;
-		const ctx = canvasEl.getContext('2d');
-		if (!ctx) return;
-		ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-		ctx.drawImage(imageEl, 0, 0, canvasEl.width, canvasEl.height);
-		ctx.strokeStyle = 'blue';
-		ctx.lineWidth = 2;
-		ctx.strokeRect(
-			Math.min(selectStartX, selectEndX),
-			Math.min(selectStartY, selectEndY),
-			Math.abs(selectEndX - selectStartX),
-			Math.abs(selectEndY - selectStartY)
-		);
-	}
-	function clearSelection() {
-		const ctx = canvasEl.getContext('2d');
-		if (ctx && imageEl) {
-			ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-			ctx.drawImage(imageEl, 0, 0, canvasEl.width, canvasEl.height);
-		}
-	}
-	function startDrag(e: MouseEvent, idx: number) {
-		draggingIdx = idx;
-		const box = detections[idx].xyxy[0];
-		dragOffset.x = e.clientX - (box[0] * imageDisplayWidth) / imageNaturalWidth;
-		dragOffset.y = e.clientY - (box[1] * imageDisplayHeight) / imageNaturalHeight;
-		window.addEventListener('mousemove', dragBox);
-		window.addEventListener('mouseup', stopDrag);
-	}
-	function dragBox(e: MouseEvent) {
-		if (draggingIdx === null) return;
-		const det = detections[draggingIdx];
-		let box = det.xyxy[0];
-		const w = box[2] - box[0];
-		const h = box[3] - box[1];
-		let newLeftPx = e.clientX - dragOffset.x;
-		let newTopPx = e.clientY - dragOffset.y;
-		let newLeft = (newLeftPx / imageDisplayWidth) * imageNaturalWidth;
-		let newTop = (newTopPx / imageDisplayHeight) * imageNaturalHeight;
-		let newRight = newLeft + w;
-		let newBottom = newTop + h;
-		det.xyxy[0] = [newLeft, newTop, newRight, newBottom];
-		detections = [...detections];
-	}
-	function stopDrag() {
-		draggingIdx = null;
-		window.removeEventListener('mousemove', dragBox);
-		window.removeEventListener('mouseup', stopDrag);
-	}
-	function startResize(e: MouseEvent, idx: number) {
-		e.stopPropagation();
-		resizingIdx = idx;
-		const box = detections[idx].xyxy[0];
-		resizeStart.x = e.clientX;
-		resizeStart.y = e.clientY;
-		resizeStart.boxW = box[2] - box[0];
-		resizeStart.boxH = box[3] - box[1];
-		window.addEventListener('mousemove', resizeBox);
-		window.addEventListener('mouseup', stopResize);
-	}
-	function resizeBox(e: MouseEvent) {
-		if (resizingIdx === null) return;
-		const det = detections[resizingIdx];
-		let box = det.xyxy[0];
-		let deltaX = (e.clientX - resizeStart.x) * (imageNaturalWidth / imageDisplayWidth);
-		let deltaY = (e.clientY - resizeStart.y) * (imageNaturalHeight / imageDisplayHeight);
-		let newW = Math.max(10, resizeStart.boxW + deltaX);
-		let newH = Math.max(10, resizeStart.boxH + deltaY);
-		det.xyxy[0][2] = det.xyxy[0][0] + newW;
-		det.xyxy[0][3] = det.xyxy[0][1] + newH;
-		detections = [...detections];
-	}
-	function stopResize() {
-		resizingIdx = null;
-		window.removeEventListener('mousemove', resizeBox);
-		window.removeEventListener('mouseup', stopResize);
-	}
-	// --- Eliminar bounding box ---
-	function deleteBox(idx: number) {
-		detections = detections.slice(0, idx).concat(detections.slice(idx + 1));
-	}
-	// --- Imagen, API, etc ---
-	function handleFileChange(event: Event): void {
-		const file = (event.target as HTMLInputElement).files?.[0];
-		if (file) {
-			const reader = new FileReader();
-			reader.onload = (e) => {
-				selectedImage = e.target?.result as string;
-				croppedImage = null;
-				scan = false;
-				detections = [];
-			};
-			reader.readAsDataURL(file);
-		}
-	}
-	async function detectBoxes() {
-		if (!selectedImage) return;
-		const blob = await (await fetch(selectedImage)).blob();
-		const form = new FormData();
-		form.append('image', blob, 'scan.png');
-		const res = await fetch(BOUNDING_BOXES_ENDPOINT, {
-			method: 'POST',
-			headers: { Authorization: `Bearer ${YOLO_API_KEY}` },
-			body: form
-		});
-		if (!res.ok) {
-			alert('Error bounding box API');
-			return;
-		}
-		detections = await res.json();
-	}
-	function handleClick() {
-		if (selectedImage) scan = true;
-		else alert('No image selected');
-	}
-	onMount(async () => {
-		try {
-			const res = await fetch('/api/icons');
-			if (!res.ok) throw new Error(`Error fetching icons: ${res.statusText}`);
-			icons = await res.json();
-		} catch (err) {
-			console.error('Failed to load icons:', err);
-		}
-	});
+    const YOLO_API_KEY = import.meta.env.VITE_YOLO_API_KEY;
+    const YOLO_ENDPOINT = import.meta.env.VITE_YOLO_ENDPOINT;
+    const BOUNDING_BOXES_ENDPOINT = import.meta.env.VITE_BOUNDING_BOXES_ENDPOINT;
+    const ADD_IMAGE_ENDPOINT = import.meta.env.VITE_YOLO_ADD_TRAIN_IMAGE;
+    const RETRAIN_ENDPOINT = import.meta.env.VITE_YOLO_RETRAIN;
+    // -------- Bounding boxes: drag, resize, crear --------
+    function startSelection(event: MouseEvent) {
+        if (event.target !== canvasEl) return;
+        const rect = canvasEl.getBoundingClientRect();
+        isSelecting = true;
+        selectStartX = selectEndX = event.clientX - rect.left;
+        selectStartY = selectEndY = event.clientY - rect.top;
+    }
+    function updateSelection(event: MouseEvent) {
+        if (!isSelecting) return;
+        const rect = canvasEl.getBoundingClientRect();
+        selectEndX = event.clientX - rect.left;
+        selectEndY = event.clientY - rect.top;
+        drawSelection();
+    }
+    function endSelection() {
+        if (!isSelecting) return;
+        isSelecting = false;
+        const minW = 10,
+            minH = 10;
+        const w = Math.abs(selectEndX - selectStartX);
+        const h = Math.abs(selectEndY - selectStartY);
+        if (w >= minW && h >= minH) {
+            const scaleX = imageEl.naturalWidth / imageEl.clientWidth;
+            const scaleY = imageEl.naturalHeight / imageEl.clientHeight;
+            const x0 = Math.min(selectStartX, selectEndX) * scaleX;
+            const y0 = Math.min(selectStartY, selectEndY) * scaleY;
+            const x1 = Math.max(selectStartX, selectEndX) * scaleX;
+            const y1 = Math.max(selectStartY, selectEndY) * scaleY;
+            const label = prompt('Label del bounding box:', 'manual_box') || 'manual_box';
+            detections = [
+                ...detections,
+                {
+                    xyxy: [[x0, y0, x1, y1]],
+                    confidence: 1,
+                    class_id: 0,
+                    label,
+                    manual: true
+                }
+            ];
+        }
+        clearSelection();
+    }
+    function drawSelection() {
+        if (!isSelecting) return;
+        const ctx = canvasEl.getContext('2d');
+        if (!ctx) return;
+        ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+        ctx.drawImage(imageEl, 0, 0, canvasEl.width, canvasEl.height);
+        ctx.strokeStyle = 'blue';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(
+            Math.min(selectStartX, selectEndX),
+            Math.min(selectStartY, selectEndY),
+            Math.abs(selectEndX - selectStartX),
+            Math.abs(selectEndY - selectStartY)
+        );
+    }
+    function clearSelection() {
+        const ctx = canvasEl.getContext('2d');
+        if (ctx && imageEl) {
+            ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+            ctx.drawImage(imageEl, 0, 0, canvasEl.width, canvasEl.height);
+        }
+    }
+    function startDrag(e: MouseEvent, idx: number) {
+        draggingIdx = idx;
+        const box = detections[idx].xyxy[0];
+        dragOffset.x = e.clientX - (box[0] * imageDisplayWidth) / imageNaturalWidth;
+        dragOffset.y = e.clientY - (box[1] * imageDisplayHeight) / imageNaturalHeight;
+        window.addEventListener('mousemove', dragBox);
+        window.addEventListener('mouseup', stopDrag);
+    }
+    function dragBox(e: MouseEvent) {
+        if (draggingIdx === null) return;
+        const det = detections[draggingIdx];
+        let box = det.xyxy[0];
+        const w = box[2] - box[0];
+        const h = box[3] - box[1];
+        let newLeftPx = e.clientX - dragOffset.x;
+        let newTopPx = e.clientY - dragOffset.y;
+        let newLeft = (newLeftPx / imageDisplayWidth) * imageNaturalWidth;
+        let newTop = (newTopPx / imageDisplayHeight) * imageNaturalHeight;
+        let newRight = newLeft + w;
+        let newBottom = newTop + h;
+        det.xyxy[0] = [newLeft, newTop, newRight, newBottom];
+        detections = [...detections];
+    }
+    function stopDrag() {
+        draggingIdx = null;
+        window.removeEventListener('mousemove', dragBox);
+        window.removeEventListener('mouseup', stopDrag);
+    }
+    function startResize(e: MouseEvent, idx: number) {
+        e.stopPropagation();
+        resizingIdx = idx;
+        const box = detections[idx].xyxy[0];
+        resizeStart.x = e.clientX;
+        resizeStart.y = e.clientY;
+        resizeStart.boxW = box[2] - box[0];
+        resizeStart.boxH = box[3] - box[1];
+        window.addEventListener('mousemove', resizeBox);
+        window.addEventListener('mouseup', stopResize);
+    }
+    function resizeBox(e: MouseEvent) {
+        if (resizingIdx === null) return;
+        const det = detections[resizingIdx];
+        let box = det.xyxy[0];
+        let deltaX = (e.clientX - resizeStart.x) * (imageNaturalWidth / imageDisplayWidth);
+        let deltaY = (e.clientY - resizeStart.y) * (imageNaturalHeight / imageDisplayHeight);
+        let newW = Math.max(10, resizeStart.boxW + deltaX);
+        let newH = Math.max(10, resizeStart.boxH + deltaY);
+        det.xyxy[0][2] = det.xyxy[0][0] + newW;
+        det.xyxy[0][3] = det.xyxy[0][1] + newH;
+        detections = [...detections];
+    }
+    function stopResize() {
+        resizingIdx = null;
+        window.removeEventListener('mousemove', resizeBox);
+        window.removeEventListener('mouseup', stopResize);
+    }
+    // --- Eliminar bounding box ---
+    function deleteBox(idx: number) {
+        detections = detections.slice(0, idx).concat(detections.slice(idx + 1));
+    }
+    // --- Imagen, API, etc ---
+    function handleFileChange(event: Event): void {
+        const file = (event.target as HTMLInputElement).files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                selectedImage = e.target?.result as string;
+                croppedImage = null;
+                scan = false;
+                detections = [];
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+    async function detectBoxes() {
+        if (!selectedImage) return;
+        const blob = await (await fetch(selectedImage)).blob();
+        const form = new FormData();
+        form.append('image', blob, 'scan.png');
+        const res = await fetch(BOUNDING_BOXES_ENDPOINT, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${YOLO_API_KEY}` },
+            body: form
+        });
+        if (!res.ok) {
+            alert('Error bounding box API');
+            return;
+        }
+        detections = await res.json();
+    }
+    function handleClick() {
+        if (selectedImage) scan = true;
+        else alert('No image selected');
+    }
+    onMount(async () => {
+        try {
+            const res = await fetch('/api/icons');
+            if (!res.ok) throw new Error(`Error fetching icons: ${res.statusText}`);
+            icons = await res.json();
+        } catch (err) {
+            console.error('Failed to load icons:', err);
+        }
+    });
 
-	async function onClickExportDownloadAndUpload() {
-		if (!imageEl) return;
+    async function onClickExportDownloadAndUpload() {
+        if (!imageEl) return;
 
-		// 1. Render canvas
-		const canvas = document.createElement('canvas');
-		canvas.width = imageNaturalWidth;
-		canvas.height = imageNaturalHeight;
-		const ctx = canvas.getContext('2d');
-		if (!ctx) return;
-		ctx.drawImage(imageEl, 0, 0, canvas.width, canvas.height);
+        // 1. Render canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = imageNaturalWidth;
+        canvas.height = imageNaturalHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(imageEl, 0, 0, canvas.width, canvas.height);
 
-		// Dibuja bounding boxes si corresponde
-		if (exportWithBoxes) {
-			ctx.save();
-			ctx.lineWidth = 4;
-			ctx.strokeStyle = 'red';
-			detections.forEach((det) => {
-				const [x0, y0, x1, y1] = det.xyxy[0];
-				ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
-			});
-			ctx.restore();
-		}
+        // Dibuja bounding boxes si corresponde
+        if (exportWithBoxes) {
+            ctx.save();
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = 'red';
+            detections.forEach((det) => {
+                const [x0, y0, x1, y1] = det.xyxy[0];
+                ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+            });
+            ctx.restore();
+        }
 
-		// 2. Canvas a blob para imagen
-		const imageBlob: Blob = await new Promise((resolve) =>
-			canvas.toBlob((blob) => resolve(blob!), 'image/png')
-		);
+        // 2. Canvas a blob para imagen
+        const imageBlob: Blob = await new Promise((resolve) =>
+            canvas.toBlob((blob) => resolve(blob!), 'image/png')
+        );
 
-		const imageFileName = exportWithBoxes ? 'bounding_boxes.png' : 'image_clean.png';
+        const imageFileName = exportWithBoxes ? 'bounding_boxes.png' : 'image_clean.png';
 
-		// 3. Descarga la imagen renderizada al usuario
-		const imageUrl = URL.createObjectURL(imageBlob);
-		const a = document.createElement('a');
-		a.href = imageUrl;
-		a.download = imageFileName;
-		document.body.appendChild(a);
-		a.click();
-		a.remove();
-		URL.revokeObjectURL(imageUrl);
+        // 3. Descarga la imagen renderizada al usuario
+        const imageUrl = URL.createObjectURL(imageBlob);
+        const a = document.createElement('a');
+        a.href = imageUrl;
+        a.download = imageFileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(imageUrl);
 
-		// 4. Construye el JSON COCO
-		const labels = Array.from(new Set(detections.map((d) => d.label)));
-		const label2id = Object.fromEntries(labels.map((l, idx) => [l, idx]));
+        // 4. Construye el JSON COCO
+        const labels = Array.from(new Set(detections.map((d) => d.label)));
+        const label2id = Object.fromEntries(labels.map((l, idx) => [l, idx]));
 
-		// 2. Crea las categorías usando el mismo orden
-		const categories = labels.map((l, idx) => ({
-			id: idx,
-			name: l
-		}));
+        // 2. Crea las categorías usando el mismo orden
+        const categories = labels.map((l, idx) => ({
+            id: idx,
+            name: l
+        }));
 
-		// 3. Anotaciones con el category_id correcto según el mapa
-		const annotations = detections.map((det, i) => {
-			const [x0, y0, x1, y1] = det.xyxy[0];
-			return {
-				id: i + 1,
-				image_id: 1,
-				category_id: label2id[det.label], // ¡aquí está el cambio!
-				bbox: [x0, y0, x1 - x0, y1 - y0],
-				area: (x1 - x0) * (y1 - y0),
-				iscrowd: 0,
-				label: det.label
-			};
-		});
+        // 3. Anotaciones con el category_id correcto según el mapa
+        const annotations = detections.map((det, i) => {
+            const [x0, y0, x1, y1] = det.xyxy[0];
+            return {
+                id: i + 1,
+                image_id: 1,
+                category_id: label2id[det.label], // ¡aquí está el cambio!
+                bbox: [x0, y0, x1 - x0, y1 - y0],
+                area: (x1 - x0) * (y1 - y0),
+                iscrowd: 0,
+                label: det.label
+            };
+        });
 
-		// 4. Estructura final COCO
-		const coco = {
-			images: [
-				{
-					id: 1,
-					file_name: imageFileName,
-					width: imageNaturalWidth,
-					height: imageNaturalHeight
-				}
-			],
-			annotations,
-			categories
-		};
+        // 4. Estructura final COCO
+        const coco = {
+            images: [
+                {
+                    id: 1,
+                    file_name: imageFileName,
+                    width: imageNaturalWidth,
+                    height: imageNaturalHeight
+                }
+            ],
+            annotations,
+            categories
+        };
 
-		// 5. Descarga el COCO JSON
-		const cocoBlob = new Blob([JSON.stringify(coco, null, 2)], { type: 'application/json' });
-		const cocoUrl = URL.createObjectURL(cocoBlob);
-		const a2 = document.createElement('a');
-		a2.href = cocoUrl;
-		a2.download = imageFileName.replace('.png', '.json');
-		document.body.appendChild(a2);
-		a2.click();
-		a2.remove();
-		URL.revokeObjectURL(cocoUrl);
-		URL.revokeObjectURL(cocoUrl);
+        // 5. Descarga el COCO JSON
+        const cocoBlob = new Blob([JSON.stringify(coco, null, 2)], { type: 'application/json' });
+        const cocoUrl = URL.createObjectURL(cocoBlob);
+        const a2 = document.createElement('a');
+        a2.href = cocoUrl;
+        a2.download = imageFileName.replace('.png', '.json');
+        document.body.appendChild(a2);
+        a2.click();
+        a2.remove();
+        URL.revokeObjectURL(cocoUrl);
+        URL.revokeObjectURL(cocoUrl);
 
-		// 6. Prepara el FormData
-		const formData = new FormData();
-		formData.append('image', imageBlob, imageFileName);
-		formData.append('COCO_json', JSON.stringify(coco));
+        // 6. Prepara el FormData
+        const formData = new FormData();
+        formData.append('image', imageBlob, imageFileName);
+        formData.append('COCO_json', JSON.stringify(coco));
 
-		// 7. Sube ambos archivos al endpoint para cargar en Roboflow
-		try {
-			const response = await fetch(ADD_IMAGE_ENDPOINT, {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${YOLO_API_KEY}`
-					// NUNCA agregues Content-Type aquí cuando usas FormData
-				},
-				body: formData
-			});
+        // 7. Sube ambos archivos al endpoint para cargar en Roboflow
+        try {
+            const response = await fetch(ADD_IMAGE_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${YOLO_API_KEY}`
+                    // NUNCA agregues Content-Type aquí cuando usas FormData
+                },
+                body: formData
+            });
 
-			if (!response.ok) {
-				const error = await response.text();
-				alert('Error subiendo a Roboflow: ' + error);
-				return;
-			}
+            if (!response.ok) {
+                const error = await response.text();
+                alert('Error subiendo a Roboflow: ' + error);
+                return;
+            }
 
-			const data = await response.json();
-			alert('Subido a Roboflow: ' + JSON.stringify(data));
-		} catch (err) {
-			alert('Error en la petición: ' + err);
-		}
-	}
+            const data = await response.json();
+            alert('Subido a Roboflow: ' + JSON.stringify(data));
+        } catch (err) {
+            alert('Error en la petición: ' + err);
+        }
+    }
 
-	async function fetchRetrain() {
-		const response = await fetch(RETRAIN_ENDPOINT, {
-			method: 'GET'
-		});
-		if (!response.ok) {
-			alert('Error al solicitar reentrenamiento: ' + response.statusText);
-		}
-		alert('Reentrenamiento solicitado correctamente');
-	}
+    async function fetchRetrain() {
+        const response = await fetch(RETRAIN_ENDPOINT, {
+            method: 'GET'
+        });
+        if (!response.ok) {
+            alert('Error al solicitar reentrenamiento: ' + response.statusText);
+        }
+        alert('Reentrenamiento solicitado correctamente');
+    }
 </script>
 
 <header class="bg-amber-600 p-4 text-white">
