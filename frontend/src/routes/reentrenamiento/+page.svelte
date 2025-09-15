@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+    import { env } from "../../lib/env"
 
 	// Estados para el proceso de reentrenamiento
 	let isTraining = $state(false);
@@ -33,7 +34,7 @@
 	let finalModelPath = $state('');
 
 	// Endpoints del backend  
-	const RLHF_BASE_URL = import.meta.env.VITE_RLHF_BASE_URL || 'http://localhost:8000/rlhf';
+	const RLHF_BASE_URL = env.PUBLIC_RLHF_BASE_URL || 'http://localhost:8000/rlhf';
 	const RLHF_START_TRAINING = `${RLHF_BASE_URL}/start-training`;
 	const RLHF_SUBMIT_FEEDBACK = `${RLHF_BASE_URL}/submit-feedback`;
 	const RLHF_COMPLETE_TRAINING = `${RLHF_BASE_URL}/complete-training`;
@@ -46,7 +47,7 @@
 		try {
 			// Dataset real disponible en el proyecto
 			availableDatasets = [
-				'/home/terrazalt/Documents/magister/Repetitive-Archetypes-Patterns-RL-APP/CNN/Repetitive-Patterns-MTI-2/data.yaml'
+				'splitted-repetitive-patterns-4/data.yaml'
 			];
 			// Seleccionar automáticamente el único dataset disponible
 			selectedDataset = availableDatasets[0];
