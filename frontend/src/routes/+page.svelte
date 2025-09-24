@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import {Models} from '../../utils/validators/index'
+    import { Models, endpointsToUse } from '$lib/utils/validators';
+    import { workingEndpoint } from '$lib/utils/functions';
 
     let open = false;
     let openCNN = false;
@@ -8,7 +9,10 @@
     let selectedImage: string | null = null;
     let scan = false;
 
-    let model : Models
+    // Model selection state
+    let selectedModel: Models = Models.Yolo;
+    let endpoints = workingEndpoint(selectedModel);
+    $: endpoints = workingEndpoint(selectedModel);
 
     let imageEl: HTMLImageElement;
     let canvasEl: HTMLCanvasElement;
@@ -35,13 +39,17 @@
     let resizingIdx: number | null = null;
     let dragOffset = { x: 0, y: 0 };
     let resizeStart = { x: 0, y: 0, boxW: 0, boxH: 0 };
-    let exportWithBoxes = false; // <-- Switch de exportación
+    let exportWithBoxes = false; // <-- Switch de exportaciónß
+
+    // Nombre bonito para mostrar en la barra superior
+    $: modelName =
+        selectedModel === Models.Yolo
+            ? 'YOLO'
+            : selectedModel === Models.Retinanet
+            ? 'RetinaNet'
+            : '—';
 
     const YOLO_API_KEY = import.meta.env.VITE_YOLO_API_KEY;
-    const YOLO_ENDPOINT = import.meta.env.VITE_YOLO_ENDPOINT;
-    const BOUNDING_BOXES_ENDPOINT = import.meta.env.VITE_BOUNDING_BOXES_ENDPOINT;
-    const ADD_IMAGE_ENDPOINT = import.meta.env.VITE_YOLO_ADD_TRAIN_IMAGE;
-    const RETRAIN_ENDPOINT = import.meta.env.VITE_YOLO_RETRAIN;
     // -------- Bounding boxes: drag, resize, crear --------
     function startSelection(event: MouseEvent) {
         if (event.target !== canvasEl) return;
@@ -186,7 +194,7 @@
         const blob = await (await fetch(selectedImage)).blob();
         const form = new FormData();
         form.append('image', blob, 'scan.png');
-        const res = await fetch(BOUNDING_BOXES_ENDPOINT, {
+        const res = await fetch(endpoints.boundingBoxesEndpoint, {
             method: 'POST',
             headers: { Authorization: `Bearer ${YOLO_API_KEY}` },
             body: form
@@ -308,7 +316,7 @@
 
         // 7. Sube ambos archivos al endpoint para cargar en Roboflow
         try {
-            const response = await fetch(ADD_IMAGE_ENDPOINT, {
+            const response = await fetch(endpoints.addImageEndpoint, {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${YOLO_API_KEY}`
@@ -331,7 +339,7 @@
     }
 
     async function fetchRetrain() {
-        const response = await fetch(RETRAIN_ENDPOINT, {
+        const response = await fetch(endpoints.retrainEndpoint, {
             method: 'GET'
         });
         if (!response.ok) {
@@ -343,24 +351,53 @@
 
 <header class="bg-amber-600 p-4 text-white">
 	<div class="relative container mx-auto flex items-center justify-between">
-		<h1 class="text-xl font-bold">Repetitive Archetypes Patterns Detector</h1>
-		<button on:click={() => (openCNN = !openCNN)}>
+		<div class="flex items-center gap-3">
+			<h1 class="text-xl font-bold">Repetitive Archetypes Patterns Detector</h1>
+			<span
+				role="status"
+				aria-live="polite"
+				class="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-sm font-semibold shadow-sm ring-1 ring-white/25 backdrop-blur"
+				title="Red neuronal activa"
+			>
+				<!-- pequeño indicador -->
+				<span class="h-2.5 w-2.5 rounded-full bg-emerald-300"></span>
+				<span>Modelo: {modelName}</span>
+			</span>
+		</div>
+
+		<button
+			on:click={() => (openCNN = !openCNN)}
+			class="rounded px-2 py-1 hover:bg-amber-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+			aria-haspopup="true"
+			aria-expanded={openCNN}
+			aria-label="Seleccionar modelo de red neuronal"
+		>
 			<span class="text-2xl">☰</span>
 		</button>
+
 		{#if openCNN}
 			<div
-				class="absolute right-0 z-10 mt-2 w-29 rounded bg-white text-black shadow-lg"
+				class="absolute right-0 z-10 mt-2 w-44 rounded bg-white text-black shadow-lg"
 				style="top: 100%;"
 			>
-				<button class="py2 block px-4 hover:bg-amber-400" on:click={() => model = Models.Retinanet}
-					>Retinanet</button
+				<button
+					class="block w-full px-4 py-2 text-left hover:bg-amber-100"
+					on:click={() => { selectedModel = Models.Retinanet; openCNN = false; }}
 				>
-				<button class="py2 block px-4 hover:bg-amber-400" on:click={() => model = Models.Yolo}
-					>Yolo Model</button
+					RetinaNet
+				</button>
+				<button
+					class="block w-full px-4 py-2 text-left hover:bg-amber-100"
+					on:click={() => { selectedModel = Models.Yolo; openCNN = false; }}
 				>
-				<button class="py2 block px-4 hover:bg-amber-400" on:click={() => (openCNN = false)}
-					>Close</button
+					YOLO
+				</button>
+				<button
+					class="block w-full px-4 py-2 text-left hover:bg-amber-100"
+					on:click={() => (openCNN = false)}
 				>
+					Cerrar
+				</button>
 			</div>
 		{/if}
 	</div>
@@ -405,6 +442,9 @@
 				height: {((det.xyxy[0][3] - det.xyxy[0][1]) * imageDisplayHeight) / imageNaturalHeight}px;
 				z-index: 30;"
 						on:mousedown={(e) => startDrag(e, idx)}
+						role="button"
+						tabindex="0"
+						aria-label="Mover bounding box"
 					>
 						<!-- Botón eliminar dentro del bounding box -->
 						<button
@@ -416,6 +456,9 @@
 							class="absolute right-0 bottom-0 h-4 w-4 cursor-nwse-resize rounded-br bg-red-500 opacity-40 group-hover:opacity-80"
 							style="z-index: 40;"
 							on:mousedown|preventDefault={(e) => startResize(e, idx)}
+							role="button"
+							tabindex="0"
+							aria-label="Redimensionar bounding box"
 						></div>
 					</div>
 				{/if}
@@ -429,6 +472,7 @@
 		{/if}
 
 		<input
+			id="image-upload"
 			type="file"
 			accept="image/*"
 			on:change={handleFileChange}
@@ -443,8 +487,8 @@
 				Scan Image
 			</button>
 			<div class="mb-3 flex items-center">
-				<label class="mr-2 font-bold">¿Incluir boxes en la imagen exportada?</label>
-				<input type="checkbox" bind:checked={exportWithBoxes} class="h-5 w-5 accent-fuchsia-700" />
+				<label class="mr-2 font-bold" for="export-with-boxes">¿Incluir boxes en la imagen exportada?</label>
+				<input id="export-with-boxes" type="checkbox" bind:checked={exportWithBoxes} class="h-5 w-5 accent-fuchsia-700" />
 				<span class="ml-1">{exportWithBoxes ? 'Sí, incluir' : 'No, solo imagen limpia'}</span>
 			</div>
 			<button
@@ -522,3 +566,6 @@
 		</table>
 	</div>
 </main>
+
+			<!-- Opcional: Mostrar endpoints actuales para depuración -->
+			<details class="mt-2"><summary>Endpoints</summary><pre>{JSON.stringify(endpoints,null,2)}</pre></details>
